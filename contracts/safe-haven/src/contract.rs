@@ -12,7 +12,7 @@ use crate::{
     },
     errors::VaultError,
     events, storage,
-    types::{VaultEntry, LedgerVaultEntry, Page, STORAGE_VERSION},
+    types::{VaultEntry, LedgerVaultEntry, InsurancePool, Page, STORAGE_VERSION},
 };
 
 #[contract]
@@ -506,6 +506,97 @@ impl SafeHaven {
         Ok(())
     }
 
+    /// Configure the insurance pool. The reserve is the contract's balance of
+    /// `token`, so funding remains a normal token transfer to this contract.
+    pub fn configure_insurance(
+        env: Env,
+        admin: Address,
+        token: Address,
+        coverage_bps: u32,
+        max_coverage: i128,
+    ) -> Result<(), VaultError> {
+        admin.require_auth();
+        storage::require_admin(&env, &admin)?;
+        if coverage_bps > 10_000 || max_coverage <= 0 {
+            return Err(VaultError::InvalidInsuranceConfig);
+        }
+
+        let token_client = token::Client::new(&env, &token);
+        let reserve = token_client.balance(&env.current_contract_address());
+        storage::set_insurance_pool(&env, &InsurancePool {
+            enabled: true,
+            token,
+            coverage_bps,
+            max_coverage,
+            reserve,
+        });
+        Ok(())
+    }
+
+    pub fn disable_insurance(env: Env, admin: Address) -> Result<(), VaultError> {
+        admin.require_auth();
+        storage::require_admin(&env, &admin)?;
+        if let Some(mut pool) = storage::get_insurance_pool(&env) {
+            pool.enabled = false;
+            storage::set_insurance_pool(&env, &pool);
+        }
+        Ok(())
+    }
+
+    /// Register a wallet that may recover this depositor's active vaults.
+    pub fn register_recovery_contact(
+        env: Env,
+        depositor: Address,
+        recovery_contact: Address,
+    ) -> Result<(), VaultError> {
+        depositor.require_auth();
+        if depositor == recovery_contact {
+            return Err(VaultError::InvalidRecoveryContact);
+        }
+        storage::set_recovery_owner(&env, &recovery_contact, &depositor);
+        Ok(())
+    }
+
+    /// Move all active vaults from the registered owner to a replacement wallet.
+    /// Both the recovery wallet and replacement wallet must authorize the call.
+    pub fn recover_account(
+        env: Env,
+        recovery_contact: Address,
+        new_wallet: Address,
+    ) -> Result<u32, VaultError> {
+        recovery_contact.require_auth();
+        let old_wallet = storage::get_recovery_owner(&env, &recovery_contact)
+            .ok_or(VaultError::InvalidRecoveryContact)?;
+        if old_wallet == new_wallet {
+            return Err(VaultError::InvalidRecoveryContact);
+        }
+
+        let ids = storage::get_deposit_ids(&env, &old_wallet);
+        let mut recovered: u32 = 0;
+        for deposit_id in ids.iter() {
+            if let Some(mut entry) = storage::get_deposit_readonly(&env, &old_wallet, deposit_id) {
+                storage::remove_deposit(&env, &old_wallet, deposit_id);
+                entry.depositor = new_wallet.clone();
+                let new_id = storage::next_deposit_id(&env, &new_wallet);
+                storage::set_deposit(&env, &new_wallet, new_id, &entry);
+                recovered = recovered.saturating_add(1);
+            } else if let Some(mut entry) = storage::get_deposit_by_ledger_readonly(&env, &old_wallet, deposit_id) {
+                storage::remove_deposit_by_ledger(&env, &old_wallet, deposit_id);
+                entry.depositor = new_wallet.clone();
+                let new_id = storage::next_deposit_id(&env, &new_wallet);
+                storage::set_deposit_by_ledger(&env, &new_wallet, new_id, &entry);
+                recovered = recovered.saturating_add(1);
+            }
+        }
+        if recovered > 0 {
+            storage::add_depositor(&env, &new_wallet);
+            if storage::get_deposit_ids(&env, &old_wallet).len() == 0 {
+                storage::remove_depositor(&env, &old_wallet);
+            }
+        }
+        Ok(recovered)
+    }
+
     pub fn is_paused(env: Env) -> bool {
         storage::is_paused(&env)
     }
@@ -695,6 +786,15 @@ impl SafeHaven {
 
     pub fn get_fee_recipient(env: Env) -> Option<Address> {
         storage::get_fee_recipient(&env)
+    }
+
+    /// Returns the configured insurance terms and current reserve balance.
+    /// The reserve is refreshed from the configured token balance on every query.
+    pub fn get_insurance_pool(env: Env) -> Option<InsurancePool> {
+        let mut pool = storage::get_insurance_pool(&env)?;
+        let token_client = token::Client::new(&env, &pool.token);
+        pool.reserve = token_client.balance(&env.current_contract_address());
+        Some(pool)
     }
 
     pub fn get_depositor_count(env: Env) -> u32 {

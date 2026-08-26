@@ -15,7 +15,7 @@ import {
   type SorobanDataBuilder,
 } from '@stellar/stellar-sdk'
 import { CONFIG } from '../config'
-import type { VaultEntry, ContractResult } from '../types'
+import type { VaultEntry, ContractResult, InsurancePool } from '../types'
 
 // ----------------------------------------------------------------
 //  RPC client (singleton)
@@ -252,6 +252,26 @@ export async function getFeeRecipient(): Promise<string | null> {
   return result ?? null
 }
 
+/** Fetch the configured insurance pool and its current token reserve. */
+export async function getInsurancePool(): Promise<InsurancePool | null> {
+  return simulateReadOnly(
+    'get_insurance_pool',
+    [],
+    (v) => {
+      if (v.switch() === xdr.ScValType.scvVoid()) return null
+      const raw = scValToNative(v) as Record<string, unknown> | null
+      if (!raw) return null
+      return {
+        enabled: Boolean(raw['enabled']),
+        token: raw['token'] as string,
+        coverageBps: Number(raw['coverage_bps']),
+        maxCoverage: BigInt(raw['max_coverage'] as string | number | bigint),
+        reserve: BigInt(raw['reserve'] as string | number | bigint),
+      }
+    },
+  )
+}
+
 /** Fetch contract constants */
 export async function getConstants(): Promise<{ maxDeposit: bigint; maxLockSecs: number } | null> {
   return simulateReadOnly(
@@ -364,6 +384,20 @@ export async function buildDeposit(
     nativeToScVal(amount, { type: 'i128' }),
     nativeToScVal(unlockTime, { type: 'u64' }),
     nativeToScVal(penaltyBps, { type: 'u32' }),
+  ])
+}
+
+export async function buildRegisterRecoveryContact(depositor: string, recoveryContact: string): Promise<string | null> {
+  return buildTx(depositor, 'register_recovery_contact', [
+    new Address(depositor).toScVal(),
+    new Address(recoveryContact).toScVal(),
+  ])
+}
+
+export async function buildRecoverAccount(recoveryContact: string, newWallet: string): Promise<string | null> {
+  return buildTx(recoveryContact, 'recover_account', [
+    new Address(recoveryContact).toScVal(),
+    new Address(newWallet).toScVal(),
   ])
 }
 

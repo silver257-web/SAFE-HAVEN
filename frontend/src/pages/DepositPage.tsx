@@ -7,6 +7,7 @@ import { xlmToStroops, stroopsToXlm, formatBps, formatDuration, dateTimeLocalToU
 import type { TxStatus } from '../types'
 import type { ContractInfo } from '../App'
 import { CONFIG } from '../config'
+import { loadDepositTemplates, saveDepositTemplates, type DepositTemplate } from '../lib/settings'
 
 interface DepositPageProps {
   contractInfo: ContractInfo
@@ -20,6 +21,8 @@ export function DepositPage({ contractInfo, onSuccess }: DepositPageProps) {
   const [amount,       setAmount]       = useState('')
   const [unlockDate,   setUnlockDate]   = useState('')
   const [penaltyBps,   setPenaltyBps]   = useState('0')
+  const [templateName, setTemplateName] = useState('')
+  const [templates, setTemplates] = useState<DepositTemplate[]>(loadDepositTemplates)
 
   const [txStatus, setTxStatus] = useState<TxStatus>('idle')
   const [txHash,   setTxHash]   = useState<string | undefined>()
@@ -96,6 +99,41 @@ export function DepositPage({ contractInfo, onSuccess }: DepositPageProps) {
   }
   const isValid = amount && unlockDate && !errors.amount && !errors.unlock && !errors.penalty && !contractInfo.paused && !decimalsLoading
 
+  function handleSaveTemplate() {
+    const name = templateName.trim()
+    if (!name || !amount || !unlockDate) return
+
+    const nextTemplates = [
+      ...templates,
+      {
+        id: crypto.randomUUID(),
+        name,
+        tokenAddress,
+        amount,
+        unlockDate,
+        penaltyBps,
+        createdAt: new Date().toISOString(),
+      },
+    ]
+    saveDepositTemplates(nextTemplates)
+    setTemplates(nextTemplates)
+    setTemplateName('')
+    toast.success('Deposit template saved')
+  }
+
+  function handleLoadTemplate(template: DepositTemplate) {
+    setTokenAddress(template.tokenAddress)
+    setAmount(template.amount)
+    setUnlockDate(template.unlockDate)
+    setPenaltyBps(template.penaltyBps)
+  }
+
+  function handleDeleteTemplate(id: string) {
+    const nextTemplates = templates.filter((template) => template.id !== id)
+    saveDepositTemplates(nextTemplates)
+    setTemplates(nextTemplates)
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!wallet || !isValid) return
@@ -163,6 +201,24 @@ export function DepositPage({ contractInfo, onSuccess }: DepositPageProps) {
         <p className="text-sm text-slate-400 mb-6">
           Tokens will be transferred to the contract and locked until your chosen date.
         </p>
+
+        {templates.length > 0 && (
+          <div className="mb-6 border-b border-slate-700/60 pb-5">
+            <label className="label">Saved templates</label>
+            <div className="space-y-2">
+              {templates.map((template) => (
+                <div key={template.id} className="flex items-center gap-2">
+                  <button type="button" onClick={() => handleLoadTemplate(template)} className="btn-secondary text-xs px-3 py-1.5 flex-1 justify-start truncate">
+                    {template.name}
+                  </button>
+                  <button type="button" onClick={() => handleDeleteTemplate(template.id)} className="text-xs text-slate-500 hover:text-red-400 px-2" aria-label={`Delete ${template.name} template`}>
+                    Delete
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {contractInfo.paused && (
           <div className="mb-5 p-3 rounded-xl bg-red-900/30 border border-red-700/40 text-red-400 text-sm">
@@ -273,6 +329,24 @@ export function DepositPage({ contractInfo, onSuccess }: DepositPageProps) {
               </span>
             </div>
             {errors.penalty && <p className="text-xs text-red-400 mt-1">{errors.penalty}</p>}
+          </div>
+
+          <div className="border-t border-slate-700/60 pt-5">
+            <label className="label" htmlFor="template-name">Save current settings as template</label>
+            <div className="flex gap-2">
+              <input
+                id="template-name"
+                className="input"
+                type="text"
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                placeholder="Monthly savings"
+                disabled={isPending}
+              />
+              <button type="button" onClick={handleSaveTemplate} disabled={!templateName.trim() || !amount || !unlockDate || isPending} className="btn-secondary whitespace-nowrap px-3">
+                Save
+              </button>
+            </div>
           </div>
 
           {/* Summary */}

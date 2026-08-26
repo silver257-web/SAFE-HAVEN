@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Deposit } from '../types'
+import type { InsurancePool } from '../types'
 import { stroopsToXlm, formatUnlockDate, formatCountdown, formatBps, shortAddr, explorerAddrUrl } from '../lib/format'
 import { CONFIG } from '../config'
 
@@ -8,15 +9,22 @@ interface DepositCardProps {
   onWithdraw: (depositId: number) => void
   onCancel: (depositId: number) => void
   txPending: boolean
+  insurancePool: InsurancePool | null
 }
 
-export function DepositCard({ deposit, onWithdraw, onCancel, txPending }: DepositCardProps) {
+export function DepositCard({ deposit, onWithdraw, onCancel, txPending, insurancePool }: DepositCardProps) {
   const [showDetails, setShowDetails] = useState(false)
 
   const isXlm   = deposit.token === CONFIG.NATIVE_TOKEN
   const isUnlocked = deposit.timeRemaining !== null && deposit.timeRemaining === 0 && deposit.unlockVerified
   const isPendingVerification = deposit.timeRemaining === 0 && !deposit.unlockVerified
   const hasPenalty = deposit.penaltyBps > 0
+  const isInsured = !!insurancePool?.enabled && insurancePool.token === deposit.token && insurancePool.reserve > 0n
+  const coverageBps = isInsured ? insurancePool.coverageBps : 0
+  const coverageLimit = isInsured
+    ? [deposit.amount * BigInt(coverageBps) / 10_000n, insurancePool.maxCoverage, insurancePool.reserve].reduce((lowest, value) => value < lowest ? value : lowest)
+    : 0n
+  const formattedCoverageLimit = isXlm ? stroopsToXlm(coverageLimit) : coverageLimit.toString()
 
   const penaltyAmount = isUnlocked
     ? 0n
@@ -75,6 +83,12 @@ export function DepositCard({ deposit, onWithdraw, onCancel, txPending }: Deposi
           Early exit penalty: {formatBps(deposit.penaltyBps)} — you'd receive ~{stroopsToXlm(refundAmount)} {isXlm ? 'XLM' : 'tokens'}
         </div>
       )}
+
+      <div className={`mt-2 rounded-lg px-3 py-2 text-xs border ${isInsured ? 'border-green-700/40 bg-green-900/20 text-green-300' : 'border-slate-700/60 bg-slate-800/30 text-slate-500'}`}>
+        {isInsured
+          ? `${(coverageBps / 100).toFixed(2)}% covered up to ${formattedCoverageLimit} ${isXlm ? 'XLM' : 'base units'}`
+          : 'Insurance unavailable for this deposit'}
+      </div>
 
       {/* Expandable details */}
       {showDetails && (

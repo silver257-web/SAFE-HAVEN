@@ -30,6 +30,14 @@ export interface Deposit extends VaultEntry {
   unlockVerified: boolean
 }
 
+export interface InsurancePool {
+  enabled: boolean
+  token: string
+  coverageBps: number
+  maxCoverage: bigint
+  reserve: bigint
+}
+
 /** Result of wallet connection */
 export interface WalletInfo {
   address: string
@@ -39,7 +47,7 @@ export interface WalletInfo {
 }
 
 /** Tab pages */
-export type PageTab = 'dashboard' | 'deposit' | 'withdraw' | 'admin'
+export type PageTab = 'dashboard' | 'deposit' | 'withdraw' | 'recovery' | 'admin'
 
 /** Loading states for async operations */
 export type TxStatus = 'idle' | 'signing' | 'submitting' | 'confirming' | 'success' | 'error'

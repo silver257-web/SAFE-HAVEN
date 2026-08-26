@@ -1,6 +1,6 @@
 use soroban_sdk::{Address, Env, Vec};
 
-use crate::types::{VaultEntry, VaultKey, LedgerVaultEntry, MAX_LOCK_DURATION_SECS};
+use crate::types::{VaultEntry, VaultKey, LedgerVaultEntry, InsurancePool, MAX_LOCK_DURATION_SECS};
 
 // Number of seconds per ledger — Soroban ledgers are ~5 seconds apart.
 pub const LEDGER_SECONDS: u64 = 5;
@@ -248,6 +248,25 @@ pub fn set_fee_recipient(env: &Env, recipient: &Address) {
 
 pub fn get_fee_recipient(env: &Env) -> Option<Address> {
     env.storage().persistent().get(&VaultKey::FeeRecipient)
+}
+
+pub fn set_insurance_pool(env: &Env, pool: &InsurancePool) {
+    env.storage().persistent().set(&VaultKey::InsurancePool, pool);
+    env.storage().persistent().extend_ttl(&VaultKey::InsurancePool, BUMP_THRESHOLD, BUMP_TARGET);
+}
+
+pub fn get_insurance_pool(env: &Env) -> Option<InsurancePool> {
+    env.storage().persistent().get(&VaultKey::InsurancePool)
+}
+
+pub fn set_recovery_owner(env: &Env, recovery_contact: &Address, owner: &Address) {
+    let key = VaultKey::RecoveryOwner(recovery_contact.clone());
+    env.storage().persistent().set(&key, owner);
+    env.storage().persistent().extend_ttl(&key, BUMP_THRESHOLD, BUMP_TARGET);
+}
+
+pub fn get_recovery_owner(env: &Env, recovery_contact: &Address) -> Option<Address> {
+    env.storage().persistent().get(&VaultKey::RecoveryOwner(recovery_contact.clone()))
 }
 
 // ----------------------------------------------------------------

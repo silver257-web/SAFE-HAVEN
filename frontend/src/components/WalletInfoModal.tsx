@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { downloadSettingsExport, loadDepositTemplates } from '../lib/settings'
 
 export function WalletInfoModal() {
   const [isOpen, setIsOpen] = useState(false)
@@ -9,8 +10,8 @@ export function WalletInfoModal() {
       <button
         onClick={() => setIsOpen(true)}
         className="fixed bottom-6 right-6 w-10 h-10 rounded-full bg-stellar-600 hover:bg-stellar-700 flex items-center justify-center shadow-lg transition-colors z-40"
-        title="Wallet information and help"
-        aria-label="Wallet help"
+        title="Wallet settings and help"
+        aria-label="Wallet settings and help"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-6 h-6 text-white">
           <circle cx="12" cy="12" r="10" />
@@ -31,7 +32,7 @@ export function WalletInfoModal() {
           >
             {/* Header */}
             <div className="border-b border-slate-700 px-6 py-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-white">Wallet Information</h2>
+              <h2 className="text-lg font-semibold text-white">Wallet Information &amp; Settings</h2>
               <button
                 onClick={() => setIsOpen(false)}
                 className="text-slate-400 hover:text-slate-200 transition-colors"
@@ -92,6 +93,24 @@ export function WalletInfoModal() {
                 <p className="text-xs text-blue-300 leading-relaxed">
                   💡 <span className="font-semibold">Tip:</span> If concerned about a dapp, revoke access in Freighter instead of relying on the app's disconnect button.
                 </p>
+              </div>
+
+              {/* Settings */}
+              <div className="border-t border-slate-700 pt-4">
+                <h3 className="font-semibold text-stellar-400 mb-2">Settings</h3>
+                <p className="text-sm text-slate-400 mb-3">
+                  Download your saved deposit templates as a JSON file.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => downloadSettingsExport(loadDepositTemplates())}
+                  className="btn-secondary w-full text-sm"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
+                    <path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  Export settings
+                </button>
               </div>
             </div>
 

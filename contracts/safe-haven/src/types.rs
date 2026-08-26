@@ -35,6 +35,18 @@ pub enum VaultKey {
     /// Persists the schema version written by the last `migrate()` call (or 1
     /// for contracts that were initialized before versioning was introduced).
     StorageVersion,
+    InsurancePool,
+    RecoveryOwner(Address),
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct InsurancePool {
+    pub enabled: bool,
+    pub token: Address,
+    pub coverage_bps: u32,
+    pub max_coverage: i128,
+    pub reserve: i128,
 }
 
 #[contracttype]

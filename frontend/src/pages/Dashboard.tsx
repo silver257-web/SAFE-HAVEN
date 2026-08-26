@@ -2,6 +2,8 @@ import { useWallet } from '../context/WalletContext'
 import { useDeposits } from '../hooks/useDeposits'
 import type { ContractInfo } from '../App'
 import { DepositCard } from '../components/DepositCard'
+import { DepositCalendar } from '../components/DepositCalendar'
+import { useInsurancePool } from '../hooks/useInsurancePool'
 import { TxStatusBadge } from '../components/TxStatusBadge'
 import { buildWithdraw, buildCancelDeposit, submitTx } from '../lib/stellar'
 import { shortAddr } from '../lib/format'
@@ -16,6 +18,7 @@ interface DashboardProps {
 export function Dashboard({ contractInfo }: DashboardProps) {
   const { wallet, isRestoringSession, signTransaction } = useWallet()
   const { deposits, loading, error, refresh, pollRemoveDeposit } = useDeposits(wallet?.address ?? null)
+  const insurancePool = useInsurancePool()
   const [txStatus, setTxStatus] = useState<TxStatus>('idle')
   const [txHash,   setTxHash]   = useState<string | undefined>()
   const [txError,  setTxError]  = useState<string | undefined>()
@@ -189,6 +192,10 @@ export function Dashboard({ contractInfo }: DashboardProps) {
       {/* Tx status */}
       <TxStatusBadge status={txStatus} txHash={txHash} error={txError} />
 
+      <DepositCalendar deposits={deposits} />
+
+      <InsuranceTerms pool={insurancePool} />
+
       {/* Deposits */}
       <div>
         <div className="flex items-center justify-between mb-4">
@@ -236,6 +243,7 @@ export function Dashboard({ contractInfo }: DashboardProps) {
               <DepositCard
                 key={d.depositId}
                 deposit={d}
+                insurancePool={insurancePool}
                 onWithdraw={handleWithdraw}
                 onCancel={handleCancel}
                 txPending={pendingId === d.depositId}
@@ -245,6 +253,32 @@ export function Dashboard({ contractInfo }: DashboardProps) {
         )}
       </div>
     </div>
+  )
+}
+
+function InsuranceTerms({ pool }: { pool: ReturnType<typeof useInsurancePool> }) {
+  const configured = !!pool?.enabled
+  const coverage = pool ? `${(pool.coverageBps / 100).toFixed(2)}%` : 'Not configured'
+  const cap = pool ? pool.maxCoverage.toString() : 'no coverage limit'
+
+  return (
+    <section className="card p-5" aria-labelledby="insurance-terms-heading">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 id="insurance-terms-heading" className="font-semibold">Deposit insurance</h2>
+          <p className={`text-sm mt-1 ${configured ? 'text-green-400' : 'text-slate-400'}`}>
+            {configured ? `${coverage} covered up to ${cap} base units` : 'Insurance is not currently configured for this vault.'}
+          </p>
+        </div>
+        <span className={configured ? 'badge-green' : 'badge-yellow'}>{configured ? 'Active' : 'Unavailable'}</span>
+      </div>
+      <details className="mt-4 text-sm text-slate-400">
+        <summary className="cursor-pointer text-slate-300 hover:text-white">Terms and conditions</summary>
+        <p className="mt-2 leading-relaxed">
+          Coverage applies only when the deposit uses the pool token and the pool has sufficient reserve. Coverage is limited to the configured percentage, the per-deposit maximum, and the available reserve. Insurance does not guarantee a claim payout or cover deposits in other tokens.
+        </p>
+      </details>
+    </section>
   )
 }
 

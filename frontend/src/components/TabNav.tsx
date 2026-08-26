@@ -42,6 +42,16 @@ const tabs: TabDef[] = [
     ),
   },
   {
+    id: 'recovery',
+    label: 'Recovery',
+    icon: (
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-4 h-4">
+        <path d="M10 2.5l6 2v4.75c0 3.7-2.55 6.8-6 8.25-3.45-1.45-6-4.55-6-8.25V4.5l6-2z" />
+        <path d="M7.5 10l1.75 1.75L13 8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
     id: 'admin',
     label: 'Admin',
     adminOnly: true,
